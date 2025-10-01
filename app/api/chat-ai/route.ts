@@ -7,7 +7,14 @@ export async function POST(req: Request) {
     console.error("[v0] GROQ_API_KEY is not configured")
     return Response.json(
       {
-        response: "Le service IA n'est pas configuré. Veuillez contacter le support.",
+        response:
+          "⚠️ Configuration manquante : La clé API Groq n'est pas configurée sur ce serveur.\n\n" +
+          "📋 Pour activer le chatbot IA :\n" +
+          "1. Créez un compte gratuit sur console.groq.com\n" +
+          "2. Générez une clé API\n" +
+          "3. Ajoutez-la dans les variables d'environnement Vercel (GROQ_API_KEY)\n" +
+          "4. Redéployez l'application\n\n" +
+          "📖 Consultez DEPLOYMENT.md pour les instructions détaillées.",
         error: "GROQ_API_KEY not configured",
       },
       { status: 500 },

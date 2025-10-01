@@ -72,9 +72,11 @@ export function Header() {
             <PhoneIcon />
             Tester votre éligibilité
           </Button>
-          <Button variant="ghost" size="sm" className="hidden md:flex items-center gap-2">
-            <UserIcon />
-            Carte prépayée
+          <Button variant="ghost" size="sm" className="hidden md:flex items-center gap-2" asChild>
+            <a href="/contact">
+              <UserIcon />
+              Contact
+            </a>
           </Button>
           <Button variant="ghost" size="sm" className="hidden md:flex items-center gap-2">
             <ShoppingCartIcon />

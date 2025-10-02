@@ -58,6 +58,8 @@ interface Message {
   content: string
   sender: "user" | "bot" | "system"
   timestamp: Date
+  level?: 1 | 2 | 3 // Added level to track triage level
+  category?: string // Added category
 }
 
 const knowledgeBase = {
@@ -217,11 +219,12 @@ const knowledgeBase = {
 export function Chatbot() {
   const [isOpen, setIsOpen] = useState(false)
   const [isHumanMode, setIsHumanMode] = useState(false)
+  const [currentLevel, setCurrentLevel] = useState<1 | 2 | 3 | null>(null) // Track current triage level
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
       content:
-        "Bonjour ! Je suis l'Assistant IA de Free. Je peux répondre à vos questions sur nos services en cherchant des informations sur notre site d'assistance. Si je ne trouve pas de réponse, je vous mettrai en relation avec un conseiller humain.",
+        "Bonjour ! Je suis l'Assistant IA de Free. Je peux répondre à vos questions sur nos services. Selon la complexité de votre demande, je vous répondrai directement (Niveau 1), préparerai une suggestion pour un agent (Niveau 2), ou vous mettrai en relation avec un conseiller humain (Niveau 3).",
       sender: "bot",
       timestamp: new Date(),
     },
@@ -316,40 +319,68 @@ export function Chatbot() {
       })
 
       const data = await response.json()
-      const aiResponse = data.response
+      const { level, response: aiResponse, category, reason } = data
 
       setIsTyping(false)
+      setCurrentLevel(level) // Update current level
 
-      // Check if AI wants to transfer to human
-      if (aiResponse === "TRANSFER_TO_HUMAN") {
-        const botResponse: Message = {
+      if (level === 3) {
+        // Niveau 3: Immediate transfer to human
+        const systemMessage: Message = {
           id: (Date.now() + 1).toString(),
-          content:
-            "Je n'ai pas trouvé de réponse précise à votre question dans notre base de connaissances. Je vous mets en relation avec un conseiller humain qui pourra mieux vous aider.",
+          content: `🔴 **Niveau 3 - Humain Prioritaire**\n\n${reason}\n\nVous êtes transféré vers un conseiller humain qualifié qui pourra mieux vous aider avec cette demande.`,
           sender: "system",
           timestamp: new Date(),
+          level: 3,
+          category,
         }
 
-        setMessages((prev) => [...prev, botResponse])
+        setMessages((prev) => [...prev, systemMessage])
 
         setTimeout(() => {
           const transferMessage: Message = {
             id: (Date.now() + 2).toString(),
             content:
-              "📞 Vous êtes maintenant connecté avec un conseiller humain. Vous pouvez continuer à écrire vos messages.",
+              "📞 **Connexion établie avec un conseiller humain**\n\nUn agent qualifié va prendre en charge votre demande. Vous pouvez continuer à écrire vos messages.",
             sender: "system",
             timestamp: new Date(),
           }
           setMessages((prev) => [...prev, transferMessage])
           setIsHumanMode(true)
         }, 1500)
-      } else {
-        // AI found an answer
-        const botResponse: Message = {
+      } else if (level === 2) {
+        // Niveau 2: AI-assisted (suggestion for human validation)
+        const suggestionMessage: Message = {
           id: (Date.now() + 1).toString(),
-          content: aiResponse,
+          content: `🟡 **Niveau 2 - IA Assistée**\n\n${reason}\n\n**Suggestion de réponse préparée pour validation :**\n\n${aiResponse}\n\n_Cette réponse a été préparée par l'IA et sera validée par un agent humain avant envoi final._`,
           sender: "bot",
           timestamp: new Date(),
+          level: 2,
+          category,
+        }
+
+        setMessages((prev) => [...prev, suggestionMessage])
+
+        // Simulate human validation after 2 seconds
+        setTimeout(() => {
+          const validationMessage: Message = {
+            id: (Date.now() + 2).toString(),
+            content:
+              "✅ **Réponse validée par un agent humain**\n\nLa suggestion ci-dessus a été vérifiée et approuvée.",
+            sender: "system",
+            timestamp: new Date(),
+          }
+          setMessages((prev) => [...prev, validationMessage])
+        }, 2000)
+      } else {
+        // Niveau 1: Fully autonomous AI response
+        const botResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          content: `🟢 **Niveau 1 - IA Autonome**\n\n${aiResponse}`,
+          sender: "bot",
+          timestamp: new Date(),
+          level: 1,
+          category,
         }
         setMessages((prev) => [...prev, botResponse])
       }
@@ -357,12 +388,14 @@ export function Chatbot() {
       console.error("Error calling AI:", error)
       setIsTyping(false)
 
-      // On error, transfer to human
+      // On error, transfer to human (Level 3)
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
-        content: "Désolé, je rencontre un problème technique. Je vous mets en relation avec un conseiller humain.",
+        content:
+          "🔴 **Erreur technique**\n\nDésolé, je rencontre un problème technique. Je vous mets en relation avec un conseiller humain.",
         sender: "system",
         timestamp: new Date(),
+        level: 3,
       }
 
       setMessages((prev) => [...prev, errorResponse])
@@ -370,8 +403,7 @@ export function Chatbot() {
       setTimeout(() => {
         const transferMessage: Message = {
           id: (Date.now() + 2).toString(),
-          content:
-            "📞 Vous êtes maintenant connecté avec un conseiller humain. Vous pouvez continuer à écrire vos messages.",
+          content: "📞 **Connexion établie avec un conseiller humain**",
           sender: "system",
           timestamp: new Date(),
         }
@@ -405,13 +437,21 @@ export function Chatbot() {
       {isOpen && (
         <div className="fixed bottom-24 right-6 z-50 w-96 h-[500px] max-w-[calc(100vw-2rem)]">
           <Card className="h-full flex flex-col shadow-2xl border-0 bg-white overflow-hidden">
-            {/* Header with title */}
             <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-sky-400 to-sky-500 text-white border-b-2 border-sky-600 flex-shrink-0 shadow-md">
               <div className="flex items-center gap-3">
                 {isHumanMode ? <PhoneIcon /> : <BotIcon />}
-                <span className="font-bold text-xl tracking-wide">
-                  {isHumanMode ? "CONSEILLER HUMAIN" : "ASSISTANT IA"}
-                </span>
+                <div className="flex flex-col">
+                  <span className="font-bold text-xl tracking-wide">
+                    {isHumanMode ? "CONSEILLER HUMAIN" : "ASSISTANT IA"}
+                  </span>
+                  {currentLevel && !isHumanMode && (
+                    <span className="text-xs text-white/80">
+                      {currentLevel === 1 && "🟢 Niveau 1 - IA Autonome"}
+                      {currentLevel === 2 && "🟡 Niveau 2 - IA Assistée"}
+                      {currentLevel === 3 && "🔴 Niveau 3 - Humain Prioritaire"}
+                    </span>
+                  )}
+                </div>
               </div>
               <Button
                 variant="ghost"
@@ -466,7 +506,7 @@ export function Chatbot() {
                             )}
                           </div>
 
-                          <p className="text-sm leading-relaxed break-words overflow-wrap-anywhere flex-1">
+                          <p className="text-sm leading-relaxed break-words overflow-wrap-anywhere flex-1 whitespace-pre-wrap">
                             {message.content}
                           </p>
                         </div>
